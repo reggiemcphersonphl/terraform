@@ -1,0 +1,41 @@
+======Script Here=====
+Connect-VIServer -Server mum-vc01.sitech.com
+$vms = Import-CSV "E:\VMList.CSV"
+
+foreach ($vm in $vms)
+{
+#Assigning variables as per CSV File
+$VMName =$vm.Name
+$Template = Get-Template -name $vm.Template
+$Cluster = $vm.Cluster
+$Datastore = Get-Datastore -Name $vm.Datastore
+$Custom = Get-OSCustomizationSpec -Name $vm.Customization
+$vCPU = $vm.vCPU
+$Memory = $vm.Memory
+$Network = $vm.Network
+$Location = $vm.Location
+$IPaddress = $vm.IPaddress
+$Subnetmask = $vm.Subnetmask
+$DefaultGateway = $vm.DefaultGateway
+$PrimaryDNS = $vm.PrimaryDNS
+$SecondaryDNS = $vm.SecondaryDNS
+
+
+#Assign Network Details to Custom Template
+Get-OSCustomizationSpec $Custom | Get-OSCustomizationNicMapping | Set-OSCustomizationNicMapping -IpMode UseStaticIp -IPaddress $IPaddress -Subnetmask $Subnetmask -DefaultGateway $DefaultGateway -Dns $PrimaryDNS,$SecondaryDNS
+
+#Deploying the VM
+New-VM -Name $VMName -Template $Template -ResourcePool (Get-Cluster $Cluster | Get-ResourcePool) -location $location -StorageFormat Thin -Datastore $Datastore -OSCustomizationSpec $Custom
+Start-Sleep -Seconds 10
+
+#Set vCPU, Memory and Network (VLAN) and Additonal HDD to VM
+$NewVM = Get-VM -NAME $VMName
+$NewVM | Set-VM -MemoryGB $Memory -NumCpu $vCPU -Confirm:$false
+$NewVM | Get-NetworkAdapter | Set-NetworkAdapter -NetworkName $Network -Confirm:$false
+#Add additonal HDD if present
+#Start the VM to continue the customization process
+Start-VM -VM $NewVM -Confirm:$false
+#Remove Network Details to Custom Template
+#Get-OSCustomizationSpec $Custom | Get-OSCustomizationNicMapping | Remove-OSCustomizationNicMapping -Confirm:$false
+}
+======= Script End ==========
